@@ -10,6 +10,9 @@ recommendation system.
 - `seed.sql`: initial seed data for graduation requirements,
   teaching-certification requirements, expanded course data, choice groups,
   non-course requirements, and one sample student.
+- `../curriculum/graph.py`: prerequisite DAG loading, validation, topological
+  sort, and prerequisite lookup functions.
+- `../scripts/verify_dag.py`: simple DAG verification script.
 
 ## Course Categories
 
@@ -48,6 +51,49 @@ course A as `from_course_id` and course B as `to_course_id`.
 These prerequisite edges must form a DAG. A cycle would mean that a course is
 eventually required before itself, so later graph validation logic should reject
 cycles.
+
+## Required And Recommended Edges
+
+The `prerequisites.relation_type` column distinguishes edge strength:
+
+- `REQUIRED`: the prerequisite course should be completed before the later
+  course. Later recommendation logic can treat this as a strict blocker.
+- `RECOMMENDED`: the prerequisite course is helpful background but should not
+  strictly block a later recommendation.
+
+Both edge types are still graph edges and are included in DAG validation and
+topological sorting.
+
+## DAG Validation
+
+Run the simple verification script from the project root:
+
+```powershell
+python scripts/verify_dag.py
+```
+
+The script loads `database/schema.sql` and `database/seed.sql` into an in-memory
+SQLite database, then verifies:
+
+- total course count,
+- total prerequisite edge count,
+- whether the graph is acyclic,
+- a topological order preview,
+- direct and indirect prerequisite lookups for key courses.
+
+Example output:
+
+```text
+Total courses: 74
+Total prerequisite edges: 52
+Valid DAG: True
+Topological order preview: AAI2014, AAI3006, AAI3017, AAI3028, CHS2003, ...
+Direct prerequisites of COM3026: COM2012
+All prerequisites of COM3026: COM2002, COM2012
+Direct prerequisites of COM3005: COM3004
+Direct prerequisites of CFTD067: COM3009
+DAG verification passed.
+```
 
 ## Requirements Are Not DAG Edges
 

@@ -198,12 +198,28 @@ INSERT INTO students (
     current_semester,
     target_track
 ) VALUES
-    ('S001', 'Sample Student', 1, 1, 'COMMON')
+    ('S001', 'Sample Student', 1, 2, 'COMMON')
 ON CONFLICT(student_id) DO UPDATE SET
     student_name = excluded.student_name,
     current_year = excluded.current_year,
     current_semester = excluded.current_semester,
     target_track = excluded.target_track;
+
+INSERT INTO completed_courses (
+    student_id,
+    course_id,
+    completed_year,
+    completed_semester,
+    grade,
+    score
+) VALUES
+    ('S001', 'COM2002', 2026, 1, 'P', NULL),
+    ('S001', 'COM2003', 2026, 1, 'P', NULL)
+ON CONFLICT(student_id, course_id) DO UPDATE SET
+    completed_year = excluded.completed_year,
+    completed_semester = excluded.completed_semester,
+    grade = excluded.grade,
+    score = excluded.score;
 
 INSERT INTO student_non_course_records (
     student_id,
@@ -217,3 +233,63 @@ INSERT INTO student_non_course_records (
     ('S001', 'DRUG_TEST', 0)
 ON CONFLICT(student_id, requirement_id) DO UPDATE SET
     completed_count = excluded.completed_count;
+
+INSERT OR IGNORE INTO prerequisites (
+    from_course_id,
+    to_course_id,
+    relation_type,
+    weight,
+    reason
+) VALUES
+    ('COM2002', 'COM2012', 'REQUIRED', 5, 'Programming basics are required before Data Structures.'),
+    ('COM2012', 'COM3026', 'REQUIRED', 5, 'Data Structures are required before Algorithms.'),
+    ('COM2002', 'COM3003', 'RECOMMENDED', 4, 'Programming basics help with Database practice.'),
+    ('COM2012', 'COM3003', 'RECOMMENDED', 3, 'Data structure concepts help with Database design.'),
+    ('COM2002', 'COM3007', 'RECOMMENDED', 3, 'Programming basics help with Software Engineering.'),
+    ('COM2012', 'COM3007', 'RECOMMENDED', 3, 'Data Structures help with Software Engineering implementation.'),
+    ('COM2002', 'COM3008', 'RECOMMENDED', 3, 'Programming basics help with Programming Languages.'),
+    ('COM2012', 'COM3008', 'RECOMMENDED', 3, 'Data Structures help with Programming Languages.'),
+    ('COM2002', 'COM3004', 'RECOMMENDED', 3, 'Programming basics help with Computer Architecture.'),
+    ('COM3004', 'COM3005', 'REQUIRED', 5, 'Computer Architecture is required before Operating Systems.'),
+    ('COM3005', 'COM3006', 'RECOMMENDED', 4, 'Operating Systems help with Computer Networks.'),
+    ('COM3004', 'COM3006', 'RECOMMENDED', 3, 'Computer Architecture helps with Computer Networks.'),
+    ('COM2002', 'COM2020', 'RECOMMENDED', 4, 'Programming basics help with Machine Learning.'),
+    ('COM2012', 'COM2020', 'RECOMMENDED', 4, 'Data Structures help with Machine Learning.'),
+    ('COM3026', 'COM2020', 'RECOMMENDED', 4, 'Algorithms help with Machine Learning.'),
+    ('COM2020', 'COM3022', 'RECOMMENDED', 4, 'Machine Learning helps with Artificial Intelligence.'),
+    ('COM2020', 'COM2023', 'RECOMMENDED', 4, 'Machine Learning helps with Natural Language Processing.'),
+    ('COM2020', 'COM3034', 'RECOMMENDED', 4, 'Machine Learning helps with Intelligent Vision.'),
+    ('COM3003', 'COM3035', 'RECOMMENDED', 4, 'Database background helps with Data Science and Analytics.'),
+    ('COM3035', 'AAI3005', 'RECOMMENDED', 4, 'Data Science and Analytics help with Data Mining.'),
+    ('COM3035', 'AAI3013', 'RECOMMENDED', 4, 'Data Science and Analytics help with Big Data Processing.'),
+    ('COM3035', 'COM3033', 'RECOMMENDED', 4, 'Data Science and Analytics help with Big Data Visualization.'),
+    ('COM3004', 'COM2016', 'RECOMMENDED', 3, 'Computer Architecture helps with Linux Systems.'),
+    ('COM3005', 'COM2016', 'RECOMMENDED', 4, 'Operating Systems help with Linux Systems.'),
+    ('COM3006', 'COM3019', 'RECOMMENDED', 4, 'Computer Networks help with Network Operation Management.'),
+    ('COM3006', 'COM3023', 'RECOMMENDED', 4, 'Computer Networks help with Computer Security.'),
+    ('COM3005', 'COM3023', 'RECOMMENDED', 3, 'Operating Systems help with Computer Security.'),
+    ('COM3002', 'COM3006', 'RECOMMENDED', 3, 'Data Communication Technology helps with Computer Networks.'),
+    ('COM2002', 'COM2019', 'RECOMMENDED', 3, 'Programming basics help with Web Programming.'),
+    ('COM2002', 'COM3030', 'RECOMMENDED', 3, 'Programming basics help with Mobile Programming.'),
+    ('COM2002', 'COM2022', 'RECOMMENDED', 3, 'Programming basics help with Game Programming.'),
+    ('COM2002', 'COM3036', 'RECOMMENDED', 3, 'Programming basics help with Software Design.'),
+    ('COM3007', 'COM3036', 'RECOMMENDED', 4, 'Software Engineering helps with Software Design.'),
+    ('COM2002', 'COM3039', 'RECOMMENDED', 3, 'Programming basics help with Computer Graphics.'),
+    ('COM3039', 'COM3028', 'RECOMMENDED', 3, 'Computer Graphics helps with VR and AR Processing.'),
+    ('COM2003', 'COM3009', 'REQUIRED', 5, 'Computer Education Introduction is required before Computer Subject Education.'),
+    ('COM3009', 'CFTD067', 'RECOMMENDED', 4, 'Computer Subject Education helps with Teaching Materials and Methods.'),
+    ('COM3009', 'CFTD082', 'RECOMMENDED', 4, 'Computer Subject Education helps with Subject Logic and Essay Writing.'),
+    ('COM2003', 'COM2018', 'RECOMMENDED', 3, 'Computer Education Introduction helps with AI and Education.'),
+    ('COM2018', 'COM2017', 'RECOMMENDED', 4, 'AI and Education helps with AI Convergence Lesson Design.'),
+    ('COM2018', 'COM3037', 'RECOMMENDED', 4, 'AI and Education helps with Global AI Education Trend Analysis.'),
+    ('COM2002', 'COM3012', 'RECOMMENDED', 3, 'Programming basics help with Educational Software Development.'),
+    ('COM3007', 'COM3012', 'RECOMMENDED', 3, 'Software Engineering helps with Educational Software Development.'),
+    ('COM2018', 'COM3015', 'RECOMMENDED', 3, 'AI and Education helps with Class and Software Use.'),
+    ('EDU_THEORY_001', 'EDU_THEORY_004', 'RECOMMENDED', 2, 'Introduction to Education helps with Educational Psychology.'),
+    ('EDU_THEORY_001', 'EDU_THEORY_002', 'RECOMMENDED', 2, 'Introduction to Education helps with History and Philosophy of Education.'),
+    ('EDU_THEORY_004', 'EDU_THEORY_005', 'RECOMMENDED', 2, 'Educational Psychology helps with Curriculum.'),
+    ('EDU_THEORY_005', 'EDU_THEORY_006', 'RECOMMENDED', 2, 'Curriculum helps with Educational Evaluation.'),
+    ('EDU_THEORY_005', 'EDU_THEORY_007', 'RECOMMENDED', 2, 'Curriculum helps with Educational Methods and Technology.'),
+    ('EDU_FOUNDATION_004', 'EDU_PRACTICUM_001', 'RECOMMENDED', 3, 'School Violence Prevention helps before Teaching Practicum.'),
+    ('EDU_FOUNDATION_003', 'EDU_PRACTICUM_001', 'RECOMMENDED', 3, 'Teaching Profession Practice helps before Teaching Practicum.'),
+    ('EDU_PRACTICUM_001', 'EDU_PRACTICUM_002', 'RECOMMENDED', 2, 'Teaching Practicum helps before Educational Volunteer Work.');
