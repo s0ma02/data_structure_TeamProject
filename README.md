@@ -57,6 +57,8 @@ python scripts/verify_dag.py
 python cli.py check-dag
 python cli.py topo
 python cli.py prereq COM3026
+python cli.py prereq CFTD010
+python cli.py prereq CFTD103
 ```
 
 Inspect student state and requirements:
@@ -85,7 +87,7 @@ python -m unittest
 
 ```text
 Recommendations for S001
- 1. EDU_THEORY_001 교육학개론 (2cr, score 105, 1Y/2S)
+ 1. CFTD094 교육학개론 (2cr, score 105, 1Y/1,2S)
     reasons: 미충족 졸업/교직 요건에 직접 기여, 필수 선수과목 충족, 1학년 권장 과목, 2학기 권장 과목, COMMON 트랙과 관련
     requirement relevance: 교직과목, 교직이론
     prerequisites: required missing=none; recommended completed=none; recommended missing=none

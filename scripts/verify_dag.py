@@ -32,6 +32,8 @@ def main() -> int:
         all_com3026 = get_all_prerequisites("COM3026", prerequisites)
         direct_com3005 = get_direct_prerequisites("COM3005", prerequisites)
         direct_cftd067 = get_direct_prerequisites("CFTD067", prerequisites)
+        direct_cftd010 = get_direct_prerequisites("CFTD010", prerequisites)
+        direct_cftd103 = get_direct_prerequisites("CFTD103", prerequisites)
 
         print(f"Total courses: {len(courses)}")
         print(f"Total prerequisite edges: {len(prerequisites)}")
@@ -41,12 +43,19 @@ def main() -> int:
         print(f"All prerequisites of COM3026: {', '.join(all_com3026)}")
         print(f"Direct prerequisites of COM3005: {', '.join(direct_com3005)}")
         print(f"Direct prerequisites of CFTD067: {', '.join(direct_cftd067)}")
+        print(f"Direct prerequisites of CFTD010: {', '.join(direct_cftd010)}")
+        print(f"Direct prerequisites of CFTD103: {', '.join(direct_cftd103)}")
 
         _require("COM2012" in direct_com3026, "COM3026 must directly depend on COM2012")
         _require("COM2002" in get_direct_prerequisites("COM2012", prerequisites), "COM2012 must directly depend on COM2002")
         _require("COM2002" in all_com3026, "COM3026 must indirectly depend on COM2002")
         _require("COM3004" in direct_com3005, "COM3005 must directly depend on COM3004")
         _require("COM3009" in direct_cftd067, "CFTD067 must directly depend on COM3009")
+        _require(
+            {"CFTD119", "CFTD122"} == set(direct_cftd010),
+            "CFTD010 must directly depend on CFTD119 and CFTD122",
+        )
+        _require("CFTD007" in direct_cftd103, "CFTD103 must directly depend on CFTD007")
         _require(not cyclic, "Prerequisite graph must be acyclic")
 
         cftd067_edges = [
@@ -57,6 +66,25 @@ def main() -> int:
         _require(
             cftd067_edges and cftd067_edges[0]["relation_type"] == "RECOMMENDED",
             "CFTD067 prerequisite edge from COM3009 must be RECOMMENDED",
+        )
+        teaching_edges = {
+            (edge["from_course_id"], edge["to_course_id"]): edge
+            for edge in prerequisites
+        }
+        _require(
+            teaching_edges[("CFTD119", "CFTD010")]["relation_type"] == "RECOMMENDED"
+            and teaching_edges[("CFTD119", "CFTD010")]["weight"] == 3,
+            "CFTD010 prerequisite edge from CFTD119 must be RECOMMENDED with weight 3",
+        )
+        _require(
+            teaching_edges[("CFTD122", "CFTD010")]["relation_type"] == "RECOMMENDED"
+            and teaching_edges[("CFTD122", "CFTD010")]["weight"] == 3,
+            "CFTD010 prerequisite edge from CFTD122 must be RECOMMENDED with weight 3",
+        )
+        _require(
+            teaching_edges[("CFTD007", "CFTD103")]["relation_type"] == "RECOMMENDED"
+            and teaching_edges[("CFTD007", "CFTD103")]["weight"] == 2,
+            "CFTD103 prerequisite edge from CFTD007 must be RECOMMENDED with weight 2",
         )
 
         print("DAG verification passed.")

@@ -92,6 +92,8 @@ Direct prerequisites of COM3026: COM2012
 All prerequisites of COM3026: COM2002, COM2012
 Direct prerequisites of COM3005: COM3004
 Direct prerequisites of CFTD067: COM3009
+Direct prerequisites of CFTD010: CFTD119, CFTD122
+Direct prerequisites of CFTD103: CFTD007
 DAG verification passed.
 ```
 
