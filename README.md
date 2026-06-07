@@ -10,6 +10,8 @@ SQLite 기반 컴퓨터교육과 교육과정 추천 시스템입니다. 현재 
 - `curriculum/graph.py`: prerequisite DAG loading, validation, topological sort
 - `curriculum/requirements.py`: graduation, teaching, and non-course requirement checker
 - `curriculum/recommender.py`: transparent scoring-based course recommender
+- `api/main.py`: FastAPI backend for the web UI
+- `frontend/`: React + Vite web UI
 - `scripts/verify_dag.py`: standalone DAG verification script
 - `cli.py`: command-based CLI
 
@@ -75,6 +77,61 @@ Recommend courses:
 ```powershell
 python cli.py recommend S001 --limit 10
 python cli.py recommend-semester S001 --year 1 --semester 2 --limit 10
+```
+
+## Web UI
+
+The web UI keeps the existing Python recommendation logic and SQLite database.
+Students can check completed courses, save them, and then see recommended
+courses calculated by `CurriculumRecommender`. It also shows graduation and
+teaching requirement status from `RequirementChecker`. The prerequisite graph
+screen visualizes course vertices and directed prerequisite edges with React
+Flow, highlighting completed and recommended courses for the current student.
+The completed-course screen includes a sample reset button that restores `S001`
+to the seeded demo state.
+
+Install backend dependencies:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+Start the FastAPI backend from the project root:
+
+```bash
+uvicorn api.main:app --reload
+```
+
+If `uvicorn` is not on your shell path, run:
+
+```bash
+python3 -m uvicorn api.main:app --reload
+```
+
+Start the React frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the Vite URL printed in the terminal, usually `http://localhost:5173`.
+The frontend proxies `/api` requests to the FastAPI server on
+`http://127.0.0.1:8000`.
+
+Implemented API endpoints:
+
+```text
+GET /api/courses
+GET /api/students/{student_id}
+GET /api/students/{student_id}/completed
+PUT /api/students/{student_id}/completed
+POST /api/students/{student_id}/reset-sample
+GET /api/students/{student_id}/recommendations
+GET /api/students/{student_id}/requirements
+GET /api/graph
+GET /api/courses/{course_id}/prerequisites
 ```
 
 Run tests:
