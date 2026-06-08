@@ -191,6 +191,7 @@ ON CONFLICT(requirement_id) DO UPDATE SET
     recommended_timing = excluded.recommended_timing,
     description = excluded.description;
 
+-- Demo profile used by the web form and sample reset endpoint.
 INSERT INTO students (
     student_id,
     student_name,

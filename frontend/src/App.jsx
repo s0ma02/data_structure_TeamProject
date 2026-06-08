@@ -145,6 +145,7 @@ function App() {
     setError("");
     setMessage("");
     try {
+      // Profile edits change the recommendation context, so refresh derived panels.
       const updatedStudent = await requestJson(`/api/students/${STUDENT_ID}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -654,6 +655,7 @@ function App() {
   );
 }
 
+// Compact editor for the fixed demo student shown above the curriculum workflow.
 function StudentProfileCard({
   draft,
   hasUnsavedChanges,
@@ -1316,6 +1318,7 @@ function studentToDraft(student) {
 }
 
 function normalizeStudentDraft(draft) {
+  // Form events return strings, while the API returns numbers; normalize for comparisons.
   return {
     name: (draft?.name ?? "").trim(),
     current_year: Number(draft?.current_year) || 1,

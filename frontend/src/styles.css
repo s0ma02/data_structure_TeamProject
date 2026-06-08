@@ -109,6 +109,7 @@ h1 {
   font-size: 0.98rem;
 }
 
+/* Student profile editor keeps identity controls distinct from course selection. */
 .student-profile-card {
   margin-bottom: 18px;
   padding: 18px;

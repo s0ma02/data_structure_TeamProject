@@ -33,6 +33,7 @@ class CompletedCoursesUpdate(BaseModel):
     course_ids: list[str] = Field(default_factory=list)
 
 
+# Keep this payload aligned with the React profile form and simple API demos.
 class StudentUpdate(BaseModel):
     name: Optional[str] = None
     current_year: Optional[int] = None
@@ -100,6 +101,7 @@ def update_student(
     conn: sqlite3.Connection = Depends(get_db),
 ) -> dict[str, Any]:
     _get_student_or_404(conn, student_id)
+    # Profile fields affect recommendation scoring, so validate them before saving.
     name, current_year, current_semester, target_track = _validated_student_update(
         payload
     )

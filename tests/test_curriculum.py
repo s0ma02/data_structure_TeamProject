@@ -215,6 +215,7 @@ class CurriculumRecommendationTest(unittest.TestCase):
         self.assertEqual(statuses["CPR_TRAINING"]["missing_count"], 1)
 
     def test_student_profile_can_be_updated(self) -> None:
+        # Mirrors the web profile form before recommendation outputs are refreshed.
         updated = update_student(
             "S001",
             StudentUpdate(
