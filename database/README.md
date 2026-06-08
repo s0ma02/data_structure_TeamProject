@@ -133,6 +133,8 @@ progress is stored in `student_non_course_records`.
 
 These records are separate from `courses` because they are not lecture courses
 and should not be used as prerequisite graph nodes.
+`completed_count` stores the numeric progress, `completed` stores an explicit
+completion check from the web UI, and `note` stores an optional student memo.
 
 ## Sample SQL Queries
 

@@ -130,7 +130,9 @@ class RequirementChecker:
             """
             SELECT n.requirement_id, n.requirement_name, n.required_count,
                    n.recommended_timing, n.description,
-                   COALESCE(r.completed_count, 0) AS completed_count
+                   COALESCE(r.completed_count, 0) AS completed_count,
+                   COALESCE(r.completed, 0) AS completed,
+                   COALESCE(r.note, '') AS note
             FROM non_course_requirements n
             LEFT JOIN student_non_course_records r
               ON r.requirement_id = n.requirement_id
@@ -139,19 +141,27 @@ class RequirementChecker:
             """,
             (student_id,),
         ).fetchall()
-        return [
-            {
-                "requirement_id": row["requirement_id"],
-                "requirement_name": row["requirement_name"],
-                "required_count": row["required_count"],
-                "completed_count": row["completed_count"],
-                "recommended_timing": row["recommended_timing"],
-                "description": row["description"],
-                "satisfied": row["completed_count"] >= row["required_count"],
-                "missing_count": max(row["required_count"] - row["completed_count"], 0),
-            }
-            for row in rows
-        ]
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            stored_count = row["completed_count"]
+            required_count = row["required_count"]
+            completed = bool(row["completed"]) or stored_count >= required_count
+            completed_count = max(stored_count, required_count) if completed else stored_count
+            results.append(
+                {
+                    "requirement_id": row["requirement_id"],
+                    "requirement_name": row["requirement_name"],
+                    "required_count": required_count,
+                    "completed_count": completed_count,
+                    "completed": completed,
+                    "recommended_timing": row["recommended_timing"],
+                    "description": row["description"],
+                    "note": row["note"],
+                    "satisfied": completed,
+                    "missing_count": max(required_count - completed_count, 0),
+                }
+            )
+        return results
 
     def get_missing_requirements(self, student_id: str) -> list[dict[str, Any]]:
         summary = self.get_requirement_summary(student_id)

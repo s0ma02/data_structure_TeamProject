@@ -155,6 +155,43 @@ class CurriculumRecommendationTest(unittest.TestCase):
         self.assertEqual(len(statuses), 5)
         self.assertTrue(all(not status["satisfied"] for status in statuses))
 
+    def test_non_course_completed_flag_satisfies_requirement(self) -> None:
+        self.conn.execute(
+            """
+            UPDATE student_non_course_records
+            SET completed = 1, completed_count = 0, note = '완료 확인'
+            WHERE student_id = 'S001'
+              AND requirement_id = 'TEACHING_APTITUDE_CHARACTER'
+            """
+        )
+        self.conn.commit()
+
+        statuses = {
+            status["requirement_id"]: status
+            for status in self.checker.check_non_course_requirements("S001")
+        }
+        self.assertTrue(statuses["TEACHING_APTITUDE_CHARACTER"]["satisfied"])
+        self.assertTrue(statuses["TEACHING_APTITUDE_CHARACTER"]["completed"])
+        self.assertEqual(statuses["TEACHING_APTITUDE_CHARACTER"]["note"], "완료 확인")
+
+    def test_non_course_count_satisfies_requirement(self) -> None:
+        self.conn.execute(
+            """
+            UPDATE student_non_course_records
+            SET completed = 0, completed_count = 2
+            WHERE student_id = 'S001'
+              AND requirement_id = 'CPR_TRAINING'
+            """
+        )
+        self.conn.commit()
+
+        statuses = {
+            status["requirement_id"]: status
+            for status in self.checker.check_non_course_requirements("S001")
+        }
+        self.assertTrue(statuses["CPR_TRAINING"]["satisfied"])
+        self.assertTrue(statuses["CPR_TRAINING"]["completed"])
+
     def test_requirement_summary_returns_missing_items_for_s001(self) -> None:
         summary = self.checker.get_requirement_summary("S001")
         missing_ids = {

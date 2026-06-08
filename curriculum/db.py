@@ -18,6 +18,7 @@ def connect(
     conn = sqlite3.connect(Path(db_path), check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    _ensure_student_non_course_record_columns(conn)
     return conn
 
 
@@ -42,3 +43,30 @@ def initialize_memory_database() -> sqlite3.Connection:
     conn.executescript(SEED_PATH.read_text(encoding="utf-8"))
     conn.commit()
     return conn
+
+
+def _ensure_student_non_course_record_columns(conn: sqlite3.Connection) -> None:
+    columns = {
+        row["name"]
+        for row in conn.execute(
+            "PRAGMA table_info(student_non_course_records)"
+        ).fetchall()
+    }
+    if not columns:
+        return
+
+    changed = False
+    if "completed" not in columns:
+        conn.execute(
+            """
+            ALTER TABLE student_non_course_records
+            ADD COLUMN completed INTEGER NOT NULL DEFAULT 0
+            CHECK (completed IN (0, 1))
+            """
+        )
+        changed = True
+    if "note" not in columns:
+        conn.execute("ALTER TABLE student_non_course_records ADD COLUMN note TEXT")
+        changed = True
+    if changed:
+        conn.commit()

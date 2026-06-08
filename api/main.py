@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 import sqlite3
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,15 +33,19 @@ class CompletedCoursesUpdate(BaseModel):
     course_ids: list[str] = Field(default_factory=list)
 
 
+class NonCourseRequirementUpdate(BaseModel):
+    key: str
+    completed: bool = False
+    value: int = Field(default=0, ge=0)
+    note: Optional[str] = ""
+
+
+class NonCourseRequirementsUpdate(BaseModel):
+    items: list[NonCourseRequirementUpdate] = Field(default_factory=list)
+
+
 SAMPLE_STUDENT_ID = "S001"
 SAMPLE_COMPLETED_COURSES = ("COM2002", "COM2003")
-SAMPLE_NON_COURSE_REQUIREMENTS = (
-    "TEACHING_APTITUDE_CHARACTER",
-    "CPR_TRAINING",
-    "GENDER_SENSITIVITY_EDUCATION",
-    "CRIMINAL_RECORD_CHECK",
-    "DRUG_TEST",
-)
 
 
 def get_db() -> Iterator[sqlite3.Connection]:
@@ -100,6 +104,9 @@ def reset_sample_student(
         "student_id": student_id,
         "completed_course_ids": [course["course_id"] for course in completed_courses],
         "completed_courses": completed_courses,
+        "non_course_requirements": _non_course_requirements_response(student_id, conn)[
+            "items"
+        ],
     }
 
 
@@ -111,6 +118,64 @@ def get_requirements(
     _get_student_or_404(conn, student_id)
     summary = RequirementChecker(conn).get_requirement_summary(student_id)
     return _requirements_response(student_id, summary)
+
+
+@app.get("/api/students/{student_id}/non-course-requirements")
+def get_non_course_requirements(
+    student_id: str,
+    conn: sqlite3.Connection = Depends(get_db),
+) -> dict[str, Any]:
+    _get_student_or_404(conn, student_id)
+    return _non_course_requirements_response(student_id, conn)
+
+
+@app.put("/api/students/{student_id}/non-course-requirements")
+def update_non_course_requirements(
+    student_id: str,
+    payload: NonCourseRequirementsUpdate,
+    conn: sqlite3.Connection = Depends(get_db),
+) -> dict[str, Any]:
+    _get_student_or_404(conn, student_id)
+    definitions = _non_course_requirement_definitions(conn)
+    requested_items = _dedupe_non_course_items(payload.items)
+    missing = sorted(key for key in requested_items if key not in definitions)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown non-course requirement: {', '.join(missing)}",
+        )
+
+    try:
+        for key, item in requested_items.items():
+            required_count = definitions[key]["required_count"]
+            value = max(item.value, 0)
+            completed = item.completed or value >= required_count
+            stored_value = max(value, required_count) if completed else value
+            conn.execute(
+                """
+                INSERT INTO student_non_course_records (
+                    student_id, requirement_id, completed_count, completed, note
+                )
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(student_id, requirement_id) DO UPDATE SET
+                    completed_count = excluded.completed_count,
+                    completed = excluded.completed,
+                    note = excluded.note
+                """,
+                (
+                    student_id,
+                    key,
+                    stored_value,
+                    1 if completed else 0,
+                    (item.note or "").strip(),
+                ),
+            )
+        conn.commit()
+    except sqlite3.DatabaseError:
+        conn.rollback()
+        raise
+
+    return _non_course_requirements_response(student_id, conn)
 
 
 @app.put("/api/students/{student_id}/completed")
@@ -294,15 +359,22 @@ def _reset_sample_student(conn: sqlite3.Connection) -> None:
             "DELETE FROM student_non_course_records WHERE student_id = ?",
             (SAMPLE_STUDENT_ID,),
         )
-        for requirement_id in SAMPLE_NON_COURSE_REQUIREMENTS:
+        requirement_rows = conn.execute(
+            """
+            SELECT requirement_id
+            FROM non_course_requirements
+            ORDER BY requirement_id
+            """
+        ).fetchall()
+        for row in requirement_rows:
             conn.execute(
                 """
                 INSERT INTO student_non_course_records (
-                    student_id, requirement_id, completed_count
+                    student_id, requirement_id, completed_count, completed, note
                 )
-                VALUES (?, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (SAMPLE_STUDENT_ID, requirement_id, 0),
+                (SAMPLE_STUDENT_ID, row["requirement_id"], 0, 0, ""),
             )
         conn.commit()
     except sqlite3.DatabaseError:
@@ -362,6 +434,7 @@ def _course_requirement_response(requirement: dict[str, Any]) -> dict[str, Any]:
         "requirement_id": requirement["requirement_id"],
         "name": requirement["requirement_name"],
         "category": _category_key(requirement["category"]),
+        "type": "course",
         "status": _status(requirement["satisfied"]),
         "satisfied": requirement["satisfied"],
         "completed": completed,
@@ -379,14 +452,78 @@ def _non_course_requirement_response(requirement: dict[str, Any]) -> dict[str, A
         "requirement_id": requirement["requirement_id"],
         "name": requirement["requirement_name"],
         "category": "non_course",
+        "type": "non_course",
         "status": _status(requirement["satisfied"]),
         "satisfied": requirement["satisfied"],
         "completed": completed,
         "required": required,
-        "unit": "회",
+        "unit": _non_course_unit(requirement["requirement_name"]),
         "progress_percent": _progress_percent(completed, required),
         "description": requirement["description"],
+        "note": requirement.get("note", ""),
     }
+
+
+def _non_course_requirements_response(
+    student_id: str,
+    conn: sqlite3.Connection,
+) -> dict[str, Any]:
+    return {
+        "student_id": student_id,
+        "items": [
+            _non_course_requirement_item_response(requirement)
+            for requirement in RequirementChecker(conn).check_non_course_requirements(
+                student_id
+            )
+        ],
+    }
+
+
+def _non_course_requirement_item_response(
+    requirement: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "key": requirement["requirement_id"],
+        "name": requirement["requirement_name"],
+        "completed": requirement["completed"],
+        "value": requirement["completed_count"],
+        "required_value": requirement["required_count"],
+        "unit": _non_course_unit(requirement["requirement_name"]),
+        "note": requirement.get("note", ""),
+        "description": requirement.get("description"),
+        "recommended_timing": requirement.get("recommended_timing"),
+    }
+
+
+def _non_course_requirement_definitions(
+    conn: sqlite3.Connection,
+) -> dict[str, dict[str, Any]]:
+    return {
+        row["requirement_id"]: dict(row)
+        for row in conn.execute(
+            """
+            SELECT requirement_id, requirement_name, required_count
+            FROM non_course_requirements
+            """
+        ).fetchall()
+    }
+
+
+def _dedupe_non_course_items(
+    items: list[NonCourseRequirementUpdate],
+) -> dict[str, NonCourseRequirementUpdate]:
+    result: dict[str, NonCourseRequirementUpdate] = {}
+    for item in items:
+        key = item.key.strip()
+        if key:
+            result[key] = item.copy(update={"key": key})
+    return result
+
+
+def _non_course_unit(requirement_name: str | None) -> str:
+    if requirement_name and "봉사" in requirement_name:
+        return "시간"
+    return "회"
 
 
 def _missing_course_responses(

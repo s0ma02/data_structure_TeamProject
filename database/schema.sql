@@ -98,6 +98,8 @@ CREATE TABLE IF NOT EXISTS student_non_course_records (
     student_id TEXT NOT NULL,
     requirement_id TEXT NOT NULL,
     completed_count INTEGER DEFAULT 0 CHECK (completed_count >= 0),
+    completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0, 1)),
+    note TEXT,
     FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
     FOREIGN KEY (requirement_id) REFERENCES non_course_requirements(requirement_id) ON DELETE CASCADE,
     UNIQUE (student_id, requirement_id)

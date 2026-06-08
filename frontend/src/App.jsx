@@ -46,6 +46,9 @@ function App() {
   const [savedCourseIds, setSavedCourseIds] = useState(new Set());
   const [recommendations, setRecommendations] = useState([]);
   const [requirements, setRequirements] = useState(null);
+  const [nonCourseRequirements, setNonCourseRequirements] = useState([]);
+  const [nonCourseDrafts, setNonCourseDrafts] = useState({});
+  const [savedNonCourseDrafts, setSavedNonCourseDrafts] = useState({});
   const [graphData, setGraphData] = useState(null);
   const [selectedGraphCourse, setSelectedGraphCourse] = useState(null);
   const [selectedCourseRelations, setSelectedCourseRelations] = useState(null);
@@ -55,6 +58,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingNonCourse, setIsSavingNonCourse] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -66,6 +70,10 @@ function App() {
   const selectedCount = selectedCourseIds.size;
   const savedCount = savedCourseIds.size;
   const hasUnsavedChanges = !sameSet(selectedCourseIds, savedCourseIds);
+  const hasNonCourseUnsavedChanges = !sameNonCourseDrafts(
+    nonCourseDrafts,
+    savedNonCourseDrafts,
+  );
   const recommendedCourseIds = useMemo(
     () => new Set(recommendations.map((course) => course.course_id)),
     [recommendations],
@@ -95,6 +103,7 @@ function App() {
         completedData,
         recommendationsData,
         requirementsData,
+        nonCourseData,
         graphDataResult,
       ] =
         await Promise.all([
@@ -103,6 +112,7 @@ function App() {
           requestJson(`/api/students/${STUDENT_ID}/completed`),
           requestJson(`/api/students/${STUDENT_ID}/recommendations?limit=10`),
           requestJson(`/api/students/${STUDENT_ID}/requirements`),
+          requestJson(`/api/students/${STUDENT_ID}/non-course-requirements`),
           requestJson("/api/graph"),
         ]);
       const completedIds = new Set(completedData.map((course) => course.course_id));
@@ -112,6 +122,7 @@ function App() {
       setSavedCourseIds(new Set(completedIds));
       setRecommendations(recommendationsData);
       setRequirements(requirementsData);
+      applyNonCourseItems(nonCourseData.items);
       setGraphData(graphDataResult);
     } catch (err) {
       setError(err.message);
@@ -124,12 +135,14 @@ function App() {
     setIsRefreshing(true);
     setError("");
     try {
-      const [nextRecommendations, nextRequirements] = await Promise.all([
+      const [nextRecommendations, nextRequirements, nextNonCourse] = await Promise.all([
         requestJson(`/api/students/${STUDENT_ID}/recommendations?limit=10`),
         requestJson(`/api/students/${STUDENT_ID}/requirements`),
+        requestJson(`/api/students/${STUDENT_ID}/non-course-requirements`),
       ]);
       setRecommendations(nextRecommendations);
       setRequirements(nextRequirements);
+      applyNonCourseItems(nextNonCourse.items);
       setMessage("추천 과목과 요건 요약을 갱신했습니다.");
     } catch (err) {
       setError(err.message);
@@ -182,15 +195,110 @@ function App() {
   }
 
   async function syncStudentOutputs(completedCourseIds) {
-    const [nextRecommendations, nextRequirements] = await Promise.all([
+    const [nextRecommendations, nextRequirements, nextNonCourse] = await Promise.all([
       requestJson(`/api/students/${STUDENT_ID}/recommendations?limit=10`),
       requestJson(`/api/students/${STUDENT_ID}/requirements`),
+      requestJson(`/api/students/${STUDENT_ID}/non-course-requirements`),
     ]);
     const nextCompletedIds = new Set(completedCourseIds);
     setSelectedCourseIds(nextCompletedIds);
     setSavedCourseIds(new Set(nextCompletedIds));
     setRecommendations(nextRecommendations);
     setRequirements(nextRequirements);
+    applyNonCourseItems(nextNonCourse.items);
+  }
+
+  async function saveNonCourseRequirements() {
+    setIsSavingNonCourse(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await requestJson(
+        `/api/students/${STUDENT_ID}/non-course-requirements`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            items: nonCourseRequirements.map((item) => {
+              const draft = nonCourseDrafts[item.key] ?? nonCourseItemToDraft(item);
+              return {
+                key: item.key,
+                completed: draft.completed,
+                value: draft.value,
+                note: draft.note,
+              };
+            }),
+          }),
+        },
+      );
+      applyNonCourseItems(result.items);
+      const nextRequirements = await requestJson(
+        `/api/students/${STUDENT_ID}/requirements`,
+      );
+      setRequirements(nextRequirements);
+      setMessage("비교과 요건을 저장했고 요건 요약을 갱신했습니다.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSavingNonCourse(false);
+    }
+  }
+
+  function applyNonCourseItems(items) {
+    const nextItems = items ?? [];
+    const drafts = nonCourseItemsToDrafts(nextItems);
+    setNonCourseRequirements(nextItems);
+    setNonCourseDrafts(drafts);
+    setSavedNonCourseDrafts(drafts);
+  }
+
+  function updateNonCourseCompleted(key, completed) {
+    setMessage("");
+    const item = nonCourseRequirements.find((requirement) => requirement.key === key);
+    setNonCourseDrafts((current) => {
+      const draft = current[key] ?? nonCourseItemToDraft(item);
+      const requiredValue = item?.required_value ?? 1;
+      return {
+        ...current,
+        [key]: {
+          ...draft,
+          completed,
+          value: completed ? Math.max(draft.value, requiredValue) : 0,
+        },
+      };
+    });
+  }
+
+  function updateNonCourseValue(key, value) {
+    setMessage("");
+    const item = nonCourseRequirements.find((requirement) => requirement.key === key);
+    setNonCourseDrafts((current) => {
+      const draft = current[key] ?? nonCourseItemToDraft(item);
+      const nextValue = Math.max(Number(value) || 0, 0);
+      const requiredValue = item?.required_value ?? 1;
+      return {
+        ...current,
+        [key]: {
+          ...draft,
+          value: nextValue,
+          completed: nextValue >= requiredValue,
+        },
+      };
+    });
+  }
+
+  function updateNonCourseNote(key, note) {
+    setMessage("");
+    const item = nonCourseRequirements.find((requirement) => requirement.key === key);
+    setNonCourseDrafts((current) => {
+      const draft = current[key] ?? nonCourseItemToDraft(item);
+      return {
+        ...current,
+        [key]: {
+          ...draft,
+          note,
+        },
+      };
+    });
   }
 
   function toggleCourse(courseId) {
@@ -263,6 +371,14 @@ function App() {
         >
           <BookOpen size={18} aria-hidden="true" />
           이수 과목 체크
+        </button>
+        <button
+          className={activeView === "non-course" ? "active" : ""}
+          type="button"
+          onClick={() => setActiveView("non-course")}
+        >
+          <ClipboardList size={18} aria-hidden="true" />
+          비교과 요건
         </button>
         <button
           className={activeView === "recommendations" ? "active" : ""}
@@ -384,6 +500,17 @@ function App() {
             })}
           </div>
         </section>
+      ) : activeView === "non-course" ? (
+        <NonCourseRequirementsView
+          drafts={nonCourseDrafts}
+          hasUnsavedChanges={hasNonCourseUnsavedChanges}
+          isSaving={isSavingNonCourse}
+          items={nonCourseRequirements}
+          onCompletedChange={updateNonCourseCompleted}
+          onNoteChange={updateNonCourseNote}
+          onSave={saveNonCourseRequirements}
+          onValueChange={updateNonCourseValue}
+        />
       ) : activeView === "recommendations" ? (
         <section className="content-section" aria-labelledby="recommendations-title">
           <div className="section-toolbar">
@@ -473,6 +600,112 @@ function App() {
         />
       )}
     </main>
+  );
+}
+
+function NonCourseRequirementsView({
+  drafts,
+  hasUnsavedChanges,
+  isSaving,
+  items,
+  onCompletedChange,
+  onNoteChange,
+  onSave,
+  onValueChange,
+}) {
+  return (
+    <section className="content-section non-course-section" aria-labelledby="non-course-title">
+      <div className="section-toolbar">
+        <div>
+          <h2 id="non-course-title">비교과 요건</h2>
+          <p>
+            비교과는 과목 체크와 분리해서 관리합니다.
+            {hasUnsavedChanges ? " 변경 사항은 저장 후 반영됩니다." : ""}
+          </p>
+        </div>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={onSave}
+          disabled={isSaving}
+        >
+          {isSaving ? (
+            <Loader2 className="spin" size={18} aria-hidden="true" />
+          ) : (
+            <Save size={18} aria-hidden="true" />
+          )}
+          저장
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="empty-state">등록된 비교과 요건이 없습니다.</div>
+      ) : (
+        <div className="non-course-grid">
+          {items.map((item) => {
+            const draft = drafts[item.key] ?? nonCourseItemToDraft(item);
+            const percent = progressPercent(draft.value, item.required_value);
+            return (
+              <article
+                className={`non-course-card ${
+                  draft.completed ? "satisfied" : "needed"
+                }`}
+                key={item.key}
+              >
+                <div className="non-course-card-header">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={draft.completed}
+                      onChange={(event) =>
+                        onCompletedChange(item.key, event.target.checked)
+                      }
+                    />
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>{item.recommended_timing ?? item.description ?? "-"}</small>
+                    </span>
+                  </label>
+                  <strong>{draft.completed ? "충족" : "부족"}</strong>
+                </div>
+
+                <label className="non-course-value">
+                  <span>완료 수치</span>
+                  <div>
+                    <input
+                      min="0"
+                      type="number"
+                      value={draft.value}
+                      onChange={(event) =>
+                        onValueChange(item.key, event.target.value)
+                      }
+                    />
+                    <em>
+                      / {item.required_value} {item.unit}
+                    </em>
+                  </div>
+                </label>
+
+                <div className="progress-track" aria-hidden="true">
+                  <span style={{ width: `${percent}%` }} />
+                </div>
+                <p className="progress-copy">진행률 {percent}%</p>
+
+                <label className="non-course-note">
+                  <span>메모</span>
+                  <input
+                    type="text"
+                    placeholder="선택 입력"
+                    value={draft.note}
+                    onChange={(event) => onNoteChange(item.key, event.target.value)}
+                  />
+                </label>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -685,6 +918,12 @@ function RequirementsDashboard({ requirements }) {
   }
 
   const missingCourses = requirements.missing_courses ?? [];
+  const courseRequirements = requirements.summary.filter(
+    (item) => item.type !== "non_course" && item.category !== "non_course",
+  );
+  const nonCourseRequirements = requirements.summary.filter(
+    (item) => item.type === "non_course" || item.category === "non_course",
+  );
 
   return (
     <section className="dashboard-section" aria-labelledby="requirements-title">
@@ -715,29 +954,16 @@ function RequirementsDashboard({ requirements }) {
         </div>
       </div>
 
-      <div className="requirement-grid">
-        {requirements.summary.map((item) => (
-          <article
-            className={`requirement-card ${item.satisfied ? "satisfied" : "needed"}`}
-            key={item.requirement_id}
-          >
-            <div className="requirement-card-title">
-              <div>
-                <span>{requirementCategoryLabel(item.category)}</span>
-                <h3>{item.name}</h3>
-              </div>
-              <strong>{item.status}</strong>
-            </div>
-            <p className="requirement-count">
-              {item.completed} / {item.required} {item.unit}
-            </p>
-            <div className="progress-track" aria-hidden="true">
-              <span style={{ width: `${item.progress_percent}%` }} />
-            </div>
-            <p className="progress-copy">진행률 {item.progress_percent}%</p>
-          </article>
-        ))}
-      </div>
+      <RequirementCardGroup
+        badgeLabel="과목"
+        items={courseRequirements}
+        title="과목 기반 요건"
+      />
+      <RequirementCardGroup
+        badgeLabel="비교과"
+        items={nonCourseRequirements}
+        title="비교과 요건"
+      />
 
       <div className="missing-panel">
         <div className="missing-title">
@@ -760,6 +986,45 @@ function RequirementsDashboard({ requirements }) {
         )}
       </div>
     </section>
+  );
+}
+
+function RequirementCardGroup({ badgeLabel, items, title }) {
+  if (!items.length) {
+    return null;
+  }
+  return (
+    <div className="requirement-group">
+      <div className="requirement-group-heading">
+        <h3>{title}</h3>
+      </div>
+      <div className="requirement-grid">
+        {items.map((item) => (
+          <article
+            className={`requirement-card ${item.satisfied ? "satisfied" : "needed"}`}
+            key={item.requirement_id}
+          >
+            <div className="requirement-card-title">
+              <div>
+                <span>{requirementCategoryLabel(item.category)}</span>
+                <h3>{item.name}</h3>
+              </div>
+              <div className="requirement-badges">
+                <span className="requirement-kind-badge">{badgeLabel}</span>
+                <strong>{item.status}</strong>
+              </div>
+            </div>
+            <p className="requirement-count">
+              {item.completed} / {item.required} {item.unit}
+            </p>
+            <div className="progress-track" aria-hidden="true">
+              <span style={{ width: `${item.progress_percent}%` }} />
+            </div>
+            <p className="progress-copy">진행률 {item.progress_percent}%</p>
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -887,6 +1152,52 @@ function sameSet(left, right) {
     }
   }
   return true;
+}
+
+function sameNonCourseDrafts(left, right) {
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+  return leftKeys.every(
+    (key, index) =>
+      key === rightKeys[index] &&
+      JSON.stringify(normalizeNonCourseDraft(left[key])) ===
+        JSON.stringify(normalizeNonCourseDraft(right[key])),
+  );
+}
+
+function nonCourseItemsToDrafts(items) {
+  return Object.fromEntries(
+    items.map((item) => [item.key, nonCourseItemToDraft(item)]),
+  );
+}
+
+function nonCourseItemToDraft(item) {
+  if (!item) {
+    return { completed: false, value: 0, note: "" };
+  }
+  return normalizeNonCourseDraft({
+    completed: item.completed,
+    value: item.value,
+    note: item.note,
+  });
+}
+
+function normalizeNonCourseDraft(draft) {
+  return {
+    completed: Boolean(draft?.completed),
+    value: Math.max(Number(draft?.value) || 0, 0),
+    note: draft?.note ?? "",
+  };
+}
+
+function progressPercent(completed, required) {
+  if (!required || required <= 0) {
+    return 100;
+  }
+  return Math.min(Math.round((completed / required) * 100), 100);
 }
 
 function formatList(values) {

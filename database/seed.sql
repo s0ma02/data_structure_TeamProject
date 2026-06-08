@@ -224,15 +224,19 @@ ON CONFLICT(student_id, course_id) DO UPDATE SET
 INSERT INTO student_non_course_records (
     student_id,
     requirement_id,
-    completed_count
+    completed_count,
+    completed,
+    note
 ) VALUES
-    ('S001', 'TEACHING_APTITUDE_CHARACTER', 0),
-    ('S001', 'CPR_TRAINING', 0),
-    ('S001', 'GENDER_SENSITIVITY_EDUCATION', 0),
-    ('S001', 'CRIMINAL_RECORD_CHECK', 0),
-    ('S001', 'DRUG_TEST', 0)
+    ('S001', 'TEACHING_APTITUDE_CHARACTER', 0, 0, ''),
+    ('S001', 'CPR_TRAINING', 0, 0, ''),
+    ('S001', 'GENDER_SENSITIVITY_EDUCATION', 0, 0, ''),
+    ('S001', 'CRIMINAL_RECORD_CHECK', 0, 0, ''),
+    ('S001', 'DRUG_TEST', 0, 0, '')
 ON CONFLICT(student_id, requirement_id) DO UPDATE SET
-    completed_count = excluded.completed_count;
+    completed_count = excluded.completed_count,
+    completed = excluded.completed,
+    note = excluded.note;
 
 INSERT OR IGNORE INTO prerequisites (
     from_course_id,

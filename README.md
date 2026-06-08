@@ -87,8 +87,12 @@ courses calculated by `CurriculumRecommender`. It also shows graduation and
 teaching requirement status from `RequirementChecker`. The prerequisite graph
 screen visualizes course vertices and directed prerequisite edges with React
 Flow, highlighting completed and recommended courses for the current student.
-The completed-course screen includes a sample reset button that restores `S001`
-to the seeded demo state.
+Non-course requirements are managed separately from completed courses. The
+web UI includes a dedicated non-course requirement screen where students can
+check completion, enter counts, and add optional notes. Saved non-course
+status is reflected by `RequirementChecker` in the requirement dashboard. The
+completed-course screen includes a sample reset button that restores `S001`
+to the seeded demo state, including non-course requirement progress.
 
 Install backend dependencies:
 
@@ -127,6 +131,8 @@ GET /api/courses
 GET /api/students/{student_id}
 GET /api/students/{student_id}/completed
 PUT /api/students/{student_id}/completed
+GET /api/students/{student_id}/non-course-requirements
+PUT /api/students/{student_id}/non-course-requirements
 POST /api/students/{student_id}/reset-sample
 GET /api/students/{student_id}/recommendations
 GET /api/students/{student_id}/requirements
@@ -154,3 +160,10 @@ Recommendations for S001
 
 `S001` is seeded as a first-year, second-semester student on the `COMMON` track.
 Completed courses are `COM2002` and `COM2003`.
+Default non-course requirement records are seeded separately in
+`student_non_course_records` with zero progress.
+
+## Branches
+
+- `main`: FastAPI + React web implementation
+- `python`: original Python CLI implementation
